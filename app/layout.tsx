@@ -1,15 +1,20 @@
 import '@mantine/core/styles.css';
-
-import React from 'react';
+import '@mantine/dates/styles.css';
+import '@mantine/notifications/styles.css';
+import '@mantine/tiptap/styles.css';
 import { ColorSchemeScript, mantineHtmlProps, MantineProvider } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import { ModalsProvider } from '@mantine/modals';
+import { DatesProvider } from '@mantine/dates';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { theme } from '../theme';
 
 export const metadata = {
-  title: 'Mantine Next.js template',
-  description: 'I am using Mantine with Next.js!',
+  title: 'Church Hub',
+  description: 'Church management application for devotionals and rota',
 };
 
-export default function RootLayout({ children }: { children: any }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" {...mantineHtmlProps}>
       <head>
@@ -21,7 +26,16 @@ export default function RootLayout({ children }: { children: any }) {
         />
       </head>
       <body>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <MantineProvider theme={theme}>
+          <DatesProvider settings={{ locale: 'en' }}>
+            <ModalsProvider>
+              <Notifications />
+              <AuthProvider>
+                {children}
+              </AuthProvider>
+            </ModalsProvider>
+          </DatesProvider>
+        </MantineProvider>
       </body>
     </html>
   );
