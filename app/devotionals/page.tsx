@@ -15,7 +15,10 @@ export default function DevotionalsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user) {
+    if (user === null) {
+      console.warn('AuthContext user is null. This may indicate a session/auth issue.');
+      setLoading(false)
+    } else if (user) {
       fetchCurrentDevotional()
     }
   }, [user])
@@ -49,6 +52,22 @@ export default function DevotionalsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!user && !loading) {
+    return (
+      <Navigation>
+        <Container size="lg" py="xl">
+          <Stack gap="xl">
+            <Title order={1}>Devotionals</Title>
+            <Alert color="red" title="Not signed in">
+              You are not signed in. If you believe this is an error, check your authentication setup or try logging in again.<br/>
+              <pre style={{ fontSize: '12px', marginTop: '1em' }}>Debug: user is null</pre>
+            </Alert>
+          </Stack>
+        </Container>
+      </Navigation>
+    )
   }
 
   if (loading) {
