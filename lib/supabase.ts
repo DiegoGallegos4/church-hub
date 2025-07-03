@@ -85,7 +85,26 @@ export interface RotaSlot {
   ministry?: Ministry
 }
 
+export interface RotaTemplateItem {
+  id: string
+  template_id: string
+  ministry_id: string
+  servers_needed: number
+  sort_order: number
+  created_at: string
+  updated_at: string
+  ministry?: Ministry
+}
 
+export interface RotaTemplate {
+  id: string
+  name: string
+  description?: string
+  created_by: string
+  created_at: string
+  updated_at: string
+  items?: RotaTemplateItem[]
+}
 
 export interface ServerAssignment {
   id: string
