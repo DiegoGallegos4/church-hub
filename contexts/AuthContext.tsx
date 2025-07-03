@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('AuthContext: Initial session:', session)
       setUser(session?.user ?? null)
       if (session?.user) {
         await fetchProfile(session.user.id)
@@ -35,21 +36,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Set loading to true during auth state changes to prevent flash of wrong content
+      console.log('AuthContext: Auth state changed:', event, session)
       setLoading(true)
-      
       setUser(session?.user ?? null)
-      
       if (session?.user) {
         await fetchProfile(session.user.id)
       } else {
         setProfile(null)
       }
-      
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    // Fallback: If no session after 5 seconds, set loading to false (but do not set user to null)
+    const timeout = setTimeout(() => {
+      setLoading(false)
+      console.warn('AuthContext fallback: Session restoration is taking longer than expected.')
+    }, 5000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
