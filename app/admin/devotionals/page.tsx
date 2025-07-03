@@ -10,6 +10,7 @@ import { devotionalClient, Devotional, BibleReading, DevotionalIdea, CreateDevot
 import { notifications } from '@mantine/notifications'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import { AdminNavigation } from '@/components/AdminNavigation/AdminNavigation'
 
 
 
@@ -81,6 +82,8 @@ export default function AdminDevotionalsPage() {
 
   return (
     <Stack gap="xl">
+      <AdminNavigation />
+      
       <Group justify="space-between">
         <div>
           <Title order={1}>Manage Devotionals</Title>

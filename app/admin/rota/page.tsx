@@ -13,6 +13,7 @@ import { notifications } from '@mantine/notifications'
 import { format } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { AdminNavigation } from '@/components/AdminNavigation/AdminNavigation'
 
 export default function AdminRotaPage() {
   const { user, profile, loading: authLoading } = useAuth()
@@ -630,6 +631,8 @@ export default function AdminRotaPage() {
 
   return (
     <Stack gap="xl">
+      <AdminNavigation />
+      
       <Title order={1}>Manage Rota</Title>
 
       <Tabs defaultValue="rotas">

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Title, Text, Card, Stack, Group, Switch, Button, Alert } from '@mantine/core'
 import { IconSettings, IconDeviceFloppy } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+import { AdminNavigation } from '@/components/AdminNavigation/AdminNavigation'
 
 export default function AdminSettingsPage() {
   const [settings, setSettings] = useState({
@@ -31,6 +32,8 @@ export default function AdminSettingsPage() {
 
   return (
     <Stack gap="xl">
+      <AdminNavigation />
+      
       <div>
         <Title order={1}>Settings</Title>
         <Text c="dimmed">Configure your church hub settings.</Text>

@@ -8,8 +8,11 @@ import {
 import { IconEdit, IconTrash, IconUsers, IconCrown, IconUserCheck } from '@tabler/icons-react'
 import { profileClient, UserProfile } from '@/lib'
 import { notifications } from '@mantine/notifications'
+import { AdminNavigation } from '@/components/AdminNavigation/AdminNavigation'
+import { createClient } from '@/utils/supabase/client'
 
 export default function AdminUsersPage() {
+  const supabase = createClient()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -187,6 +190,8 @@ export default function AdminUsersPage() {
 
   return (
     <Stack gap="xl">
+      <AdminNavigation />
+      
       <Group justify="space-between">
         <div>
           <Title order={1}>Manage Users</Title>
