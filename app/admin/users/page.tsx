@@ -6,14 +6,14 @@ import {
   Select, Grid, ActionIcon, Skeleton, Alert, Switch 
 } from '@mantine/core'
 import { IconEdit, IconTrash, IconUsers, IconCrown, IconUserCheck } from '@tabler/icons-react'
-import { supabase, Profile } from '@/lib/supabase'
+import { profileClient, UserProfile } from '@/lib'
 import { notifications } from '@mantine/notifications'
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<Profile[]>([])
+  const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<Profile | null>(null)
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
   
   // Form state
   const [fullName, setFullName] = useState('')
@@ -27,12 +27,8 @@ export default function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('full_name')
-
-      setUsers(data || [])
+      const users = await profileClient.getAllProfiles()
+      setUsers(users)
     } catch (error) {
       console.error('Error fetching users:', error)
     } finally {
@@ -52,25 +48,24 @@ export default function AdminUsersPage() {
 
     try {
       const userData = {
-        full_name: fullName,
+        name: fullName,
         email,
         role,
         is_server: isServer,
       }
 
       if (editingUser) {
-        const { error } = await supabase
-          .from('profiles')
-          .update(userData)
-          .eq('id', editingUser.id)
-
-        if (error) throw error
+        const updatedUser = await profileClient.updateProfile(editingUser.id, userData)
+        if (!updatedUser) throw new Error('Failed to update user')
       } else {
-        const { error } = await supabase
-          .from('profiles')
-          .insert(userData)
-
-        if (error) throw error
+        // For creating new users, we need to generate a UUID and create the profile
+        const newUserId = crypto.randomUUID()
+        const newUser = await profileClient.createProfile(newUserId, {
+          id: newUserId,
+          ...userData,
+          is_server: false
+        })
+        if (!newUser) throw new Error('Failed to create user')
       }
 
       notifications.show({
@@ -93,7 +88,7 @@ export default function AdminUsersPage() {
   const handleDelete = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .delete()
         .eq('id', id)
 
@@ -117,12 +112,8 @@ export default function AdminUsersPage() {
 
   const handleRoleToggle = async (userId: string, newRole: 'user' | 'admin') => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId)
-
-      if (error) throw error
+      const updatedUser = await profileClient.updateProfileRole(userId, newRole)
+      if (!updatedUser) throw new Error('Failed to update user role')
 
       notifications.show({
         title: 'Success',
@@ -142,12 +133,8 @@ export default function AdminUsersPage() {
 
   const handleServerToggle = async (userId: string, isServer: boolean) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_server: isServer })
-        .eq('id', userId)
-
-      if (error) throw error
+      const updatedUser = await profileClient.updateProfile(userId, { is_server: isServer })
+      if (!updatedUser) throw new Error('Failed to update server status')
 
       notifications.show({
         title: 'Success',
@@ -174,9 +161,9 @@ export default function AdminUsersPage() {
     setModalOpen(false)
   }
 
-  const openEditModal = (user: Profile) => {
+  const openEditModal = (user: UserProfile) => {
     setEditingUser(user)
-    setFullName(user.full_name || '')
+    setFullName(user.name || '')
     setEmail(user.email || '')
     setRole(user.role || 'user')
     setIsServer(user.is_server || false)
@@ -224,7 +211,7 @@ export default function AdminUsersPage() {
               <Card shadow="sm" padding="lg" radius="md" withBorder>
                 <Stack gap="md">
                   <Group justify="space-between">
-                    <Title order={3}>{user.full_name}</Title>
+                    <Title order={3}>{user.name}</Title>
                     <Group>
                       <ActionIcon
                         variant="light"

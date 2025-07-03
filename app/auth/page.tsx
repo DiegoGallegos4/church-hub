@@ -1,30 +1,55 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Container, Title, Text, TextInput, Button, Stack, Alert, Paper } from '@mantine/core'
 import { IconMail, IconCheck } from '@tabler/icons-react'
-import { useAuth } from '@/contexts/AuthContext'
 import { Navigation } from '@/components/Navigation/Navigation'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
+import { sendOtp } from './actions'
 
 export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
-  const { signIn } = useAuth()
-  const router = useRouter()
+  const [message, setMessage] = useState('')
+  const searchParams = useSearchParams()
+
+  // Handle error and success messages from URL parameters
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    const messageParam = searchParams.get('message')
+    
+    console.log('URL params:', { errorParam, messageParam })
+    
+    if (errorParam) {
+      const decodedError = decodeURIComponent(errorParam)
+      console.log('Setting error:', decodedError)
+      setError(decodedError)
+    }
+    
+    if (messageParam) {
+      const decodedMessage = decodeURIComponent(messageParam)
+      console.log('Setting message:', decodedMessage)
+      setMessage(decodedMessage)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Form submitted with email:', email)
+    
     setLoading(true)
     setError('')
+    setMessage('')
 
     try {
-      await signIn(email)
-      setSent(true)
-    } catch (err) {
-      setError('Failed to send sign-in link. Please try again.')
+      const formData = new FormData()
+      formData.append('email', email)
+      console.log('Calling sendOtp action...')
+      await sendOtp(formData)
+    } catch (err: any) {
+      console.error('Client-side error:', err)
+      setError(err.message || 'Failed to send verification code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -39,14 +64,21 @@ export default function AuthPage() {
               <div>
                 <Title order={1} ta="center">Sign In to Church Hub</Title>
                 <Text c="dimmed" ta="center" mt="xs">
-                  Enter your email to receive a sign-in link
+                  Enter your email to receive a verification code
                 </Text>
               </div>
 
-              {sent ? (
+              {message ? (
                 <Alert icon={<IconCheck size={16} />} title="Check your email" color="green">
-                  We've sent a sign-in link to <strong>{email}</strong>. 
-                  Click the link in your email to sign in to Church Hub.
+                  {message}
+                  <br />
+                  <br />
+                  <strong>Important:</strong>
+                  <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                    <li>Check your spam/junk folder if you don't see the email</li>
+                    <li>The code will expire in 1 hour for security</li>
+                    <li>Click the link in the email to complete your sign-in</li>
+                  </ul>
                 </Alert>
               ) : (
                 <form onSubmit={handleSubmit}>
@@ -72,7 +104,7 @@ export default function AuthPage() {
                       loading={loading}
                       fullWidth
                     >
-                      Send Sign-in Link
+                      Send Verification Code
                     </Button>
                   </Stack>
                 </form>

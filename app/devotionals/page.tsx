@@ -5,14 +5,13 @@ import { Container, Title, Text, Card, Stack, Badge, Group, Divider, Alert, Skel
 import { IconBook, IconBulb, IconPray, IconCalendar } from '@tabler/icons-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navigation } from '@/components/Navigation/Navigation'
-import { supabase, Devotional, BibleReading, DevotionalIdea } from '@/lib/supabase'
+import { devotionalClient, Devotional, BibleReading, DevotionalIdea } from '@/lib'
 import { format } from 'date-fns'
 
 export default function DevotionalsPage() {
   const { user } = useAuth()
   const [devotional, setDevotional] = useState<Devotional | null>(null)
   const [bibleReadings, setBibleReadings] = useState<BibleReading[]>([])
-  const [devotionalIdeas, setDevotionalIdeas] = useState<DevotionalIdea[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -25,57 +24,31 @@ export default function DevotionalsPage() {
     try {
       const today = new Date().toISOString().split('T')[0]
       
-      // Fetch current devotional
-      const { data: devotionalData, error: devotionalError } = await supabase
-        .from('devotionals')
-        .select('*')
-        .lte('start_date', today)
-        .gte('end_date', today)
-        .single()
+      // Fetch current devotional using the client method
+      const devotionals = await devotionalClient.getDevotionals()
+      const currentDevotional = devotionals.find((d: Devotional) => 
+        d.start_date <= today && (!d.end_date || d.end_date >= today)
+      )
 
-      if (devotionalError && devotionalError.code !== 'PGRST116') {
-        console.error('Error fetching devotional:', devotionalError)
-        return
-      }
-
-      if (devotionalData) {
-        setDevotional(devotionalData)
+      if (currentDevotional) {
+        console.log('Current devotional:', currentDevotional)
+        console.log('Bible readings:', currentDevotional.bible_readings)
+        console.log('Devotional ideas:', currentDevotional.devotional_ideas)
+        console.log('Bible readings length:', currentDevotional.bible_readings?.length)
+        console.log('Devotional ideas length:', currentDevotional.devotional_ideas?.length)
         
-        // Fetch bible readings
-        const { data: readingsData } = await supabase
-          .from('bible_readings')
-          .select('*')
-          .eq('devotional_id', devotionalData.id)
-          .order('created_at')
-
-        setBibleReadings(readingsData || [])
-
-        // Fetch devotional ideas
-        const { data: ideasData } = await supabase
-          .from('devotional_ideas')
-          .select('*')
-          .eq('devotional_id', devotionalData.id)
-          .order('created_at')
-
-        setDevotionalIdeas(ideasData || [])
+        setDevotional(currentDevotional)
+        
+        // Set Bible readings from the devotional data
+        const readings = currentDevotional.bible_readings || []
+        console.log('Setting bible readings:', readings)
+        setBibleReadings(readings)
       }
     } catch (error) {
       console.error('Error fetching devotional data:', error)
     } finally {
       setLoading(false)
     }
-  }
-
-  if (!user) {
-    return (
-      <Navigation>
-        <Container size="lg" py="xl">
-          <Alert color="red" title="Access Denied">
-            You must be signed in to view devotionals.
-          </Alert>
-        </Container>
-      </Navigation>
-    )
   }
 
   if (loading) {
@@ -134,27 +107,50 @@ export default function DevotionalsPage() {
           </Card>
 
           {/* Bible Readings */}
-          {bibleReadings.length > 0 && (
+          {bibleReadings.length > 0 ? (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Group mb="md">
-                <IconBook size={20} />
-                <Title order={3}>Bible Reading</Title>
+              <Group justify="space-between" mb="md">
+                <Group>
+                  <IconBook size={20} />
+                  <Title order={3}>Bible Readings</Title>
+                </Group>
+                <Badge color="blue" variant="light">
+                  {bibleReadings.length} {bibleReadings.length === 1 ? 'verse' : 'verses'}
+                </Badge>
               </Group>
-              <Stack gap="md">
-                {bibleReadings.map((reading) => (
-                  <div key={reading.id}>
-                    <Text fw={600} mb="xs">{reading.verse_reference}</Text>
-                    <Text mb="xs" style={{ fontStyle: 'italic' }}>
+              <Stack gap="lg">
+                {bibleReadings.map((reading, index) => (
+                  <div key={index} style={{ borderLeft: '3px solid #228be6', paddingLeft: '16px' }}>
+                    <Text fw={600} mb="xs" size="lg" c="blue">
+                      {reading.verse_reference}
+                    </Text>
+                    <Text mb="xs" style={{ fontStyle: 'italic', fontSize: '16px', lineHeight: 1.6 }}>
                       "{reading.verse_text}"
                     </Text>
                     {reading.commentary && (
-                      <Text size="sm" c="dimmed">
-                        {reading.commentary}
-                      </Text>
+                      <div style={{ 
+                        backgroundColor: '#f8f9fa', 
+                        padding: '12px', 
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #dee2e6'
+                      }}>
+                        <Text fw={500} size="sm" mb="xs">Commentary:</Text>
+                        <Text size="sm" c="dimmed">{reading.commentary}</Text>
+                      </div>
                     )}
                   </div>
                 ))}
               </Stack>
+            </Card>
+          ) : (
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Group mb="md">
+                <IconBook size={20} />
+                <Title order={3}>Bible Readings</Title>
+              </Group>
+              <Text c="dimmed" style={{ fontStyle: 'italic' }}>
+                No Bible readings available for this devotional.
+              </Text>
             </Card>
           )}
 
@@ -165,42 +161,82 @@ export default function DevotionalsPage() {
                 <IconPray size={20} />
                 <Title order={3}>Prayer Points</Title>
               </Group>
-              <Text style={{ whiteSpace: 'pre-line' }}>
-                {devotional.prayer_points}
-              </Text>
+              <div style={{ 
+                backgroundColor: '#fff3cd', 
+                border: '1px solid #ffeaa7', 
+                borderRadius: '8px', 
+                padding: '16px' 
+              }}>
+                <Text style={{ 
+                  whiteSpace: 'pre-line', 
+                  lineHeight: 1.6,
+                  color: '#856404'
+                }}>
+                  {devotional.prayer_points}
+                </Text>
+              </div>
             </Card>
           )}
 
           {/* Devotional Ideas */}
-          {devotionalIdeas.length > 0 && (
+          {devotional.devotional_ideas && devotional.devotional_ideas.length > 0 ? (
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+              <Group justify="space-between" mb="md">
+                <Group>
+                  <IconBulb size={20} />
+                  <Title order={3}>Devotional Ideas</Title>
+                </Group>
+                <Badge color="purple" variant="light">
+                  {devotional.devotional_ideas.length} {devotional.devotional_ideas.length === 1 ? 'idea' : 'ideas'}
+                </Badge>
+              </Group>
+              <Stack gap="lg">
+                {devotional.devotional_ideas.map((idea, index) => (
+                  <div key={idea.id} style={{ 
+                    border: '1px solid #e9ecef', 
+                    borderRadius: '8px', 
+                    padding: '16px',
+                    backgroundColor: '#f8f9fa'
+                  }}>
+                    <Text fw={600} mb="xs" size="lg" c="purple">
+                      {idea.title}
+                    </Text>
+                    {idea.description && (
+                      <Text size="sm" c="dimmed" mb="md" style={{ fontStyle: 'italic' }}>
+                        {idea.description}
+                      </Text>
+                    )}
+                    <div style={{ 
+                      backgroundColor: 'white', 
+                      padding: '12px', 
+                      borderRadius: '6px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      {idea.content_type === 'link' ? (
+                        <Text component="a" href={idea.content} target="_blank" rel="noopener noreferrer" c="blue" style={{ textDecoration: 'underline' }}>
+                          🔗 {idea.content}
+                        </Text>
+                      ) : idea.content_type === 'video' ? (
+                        <Text component="a" href={idea.content} target="_blank" rel="noopener noreferrer" c="blue" style={{ textDecoration: 'underline' }}>
+                          🎥 Watch Video
+                        </Text>
+                      ) : (
+                        <Text style={{ lineHeight: 1.6 }}>{idea.content}</Text>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </Stack>
+            </Card>
+          ) : (
             <Card shadow="sm" padding="lg" radius="md" withBorder>
               <Group mb="md">
                 <IconBulb size={20} />
                 <Title order={3}>Devotional Ideas</Title>
               </Group>
-              <Stack gap="md">
-                {devotionalIdeas.map((idea) => (
-                  <div key={idea.id}>
-                    <Text fw={600} mb="xs">{idea.title}</Text>
-                    {idea.description && (
-                      <Text size="sm" c="dimmed" mb="xs">
-                        {idea.description}
-                      </Text>
-                    )}
-                    {idea.content_type === 'link' ? (
-                      <Text component="a" href={idea.content} target="_blank" rel="noopener noreferrer" c="blue">
-                        {idea.content}
-                      </Text>
-                    ) : idea.content_type === 'video' ? (
-                      <Text component="a" href={idea.content} target="_blank" rel="noopener noreferrer" c="blue">
-                        Watch Video
-                      </Text>
-                    ) : (
-                      <Text>{idea.content}</Text>
-                    )}
-                  </div>
-                ))}
-              </Stack>
+              <Text c="dimmed" style={{ fontStyle: 'italic' }}>
+                No devotional ideas available for this devotional.
+              </Text>
             </Card>
           )}
         </Stack>

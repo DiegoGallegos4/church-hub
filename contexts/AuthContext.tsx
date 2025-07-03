@@ -1,15 +1,13 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase, UserProfile } from '@/lib/supabase'
+import { User } from '@supabase/supabase-js'
+import { createClient, UserProfile, authClient, profileClient } from '@/lib'
 
 interface AuthContextType {
   user: User | null
   profile: UserProfile | null
-  session: Session | null
   loading: boolean
-  signIn: (email: string) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>
 }
@@ -19,16 +17,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const supabase = createClient()
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id)
+        await fetchProfile(session.user.id)
       }
       setLoading(false)
     })
@@ -37,7 +35,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session)
+      // Set loading to true during auth state changes to prevent flash of wrong content
+      setLoading(true)
+      
       setUser(session?.user ?? null)
       
       if (session?.user) {
@@ -54,66 +54,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
-
-      if (error) {
-        console.error('Error fetching profile:', error)
-        return
+      const profileData = await profileClient.getProfile(userId)
+      
+      if (profileData) {
+        setProfile(profileData)
+      } else {
+        // Profile not found, create one
+        const authUser = await authClient.getCurrentUser()
+        if (authUser) {
+          const newProfile = await profileClient.createProfile(userId, authUser)
+          if (newProfile) {
+            setProfile(newProfile)
+          }
+        }
       }
-
-      setProfile(data)
     } catch (error) {
       console.error('Error fetching profile:', error)
-    }
-  }
-
-  const signIn = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-
-    if (error) {
-      throw error
+      // Set profile to null on error to prevent infinite loading
+      setProfile(null)
     }
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      throw error
-    }
+    await authClient.signOut()
   }
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', user.id)
-      .select()
-      .single()
-
-    if (error) {
-      throw error
+    console.log('AuthContext: Updating profile for user', user.id, 'with updates:', updates)
+    
+    const updatedProfile = await profileClient.updateProfile(user.id, updates)
+    if (updatedProfile) {
+      console.log('AuthContext: Profile updated successfully, setting new profile:', updatedProfile)
+      setProfile(updatedProfile)
+    } else {
+      console.error('AuthContext: Failed to update profile')
     }
-
-    setProfile(data)
   }
 
   const value = {
     user,
     profile,
-    session,
     loading,
-    signIn,
     signOut,
     updateProfile,
   }

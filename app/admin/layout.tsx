@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Container, Alert, Loader, Center } from '@mantine/core'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navigation } from '@/components/Navigation/Navigation'
-import { supabase } from '@/lib/supabase'
+import { supabaseClient, UserProfile } from '@/lib'
 
 export default function AdminLayout({
   children,
@@ -14,6 +14,7 @@ export default function AdminLayout({
   const { user } = useAuth()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
 
   useEffect(() => {
     checkAdminStatus()
@@ -27,18 +28,22 @@ export default function AdminLayout({
     }
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
+      const profile = await supabaseClient.getProfile(user.id)
       setIsAdmin(profile?.role === 'admin')
     } catch (error) {
       console.error('Error checking admin status:', error)
       setIsAdmin(false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUserProfile = async () => {
+    if (!user) return
+
+    const profile = await supabaseClient.getProfile(user.id)
+    if (profile) {
+      setProfile(profile)
     }
   }
 

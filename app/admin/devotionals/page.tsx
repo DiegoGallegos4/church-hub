@@ -3,34 +3,19 @@
 import { useState, useEffect } from 'react'
 import { 
   Title, Text, Button, Card, Stack, Group, Badge, Modal, TextInput, 
-  Textarea, Select, Grid, ActionIcon, Skeleton, Alert 
+  Textarea, Select, Grid, ActionIcon, Skeleton, Alert, Divider 
 } from '@mantine/core'
-import { IconPlus, IconEdit, IconTrash, IconBook } from '@tabler/icons-react'
-import { supabase, Devotional, BibleReading, DevotionalIdea } from '@/lib/supabase'
+import { IconPlus, IconEdit, IconTrash, IconBook, IconBulb } from '@tabler/icons-react'
+import { devotionalClient, Devotional, BibleReading, DevotionalIdea, CreateDevotionalData } from '@/lib'
 import { notifications } from '@mantine/notifications'
 import { format } from 'date-fns'
+import Link from 'next/link'
 
-interface BibleVerse {
-  reference: string
-  text: string
-  version: string
-}
+
 
 export default function AdminDevotionalsPage() {
   const [devotionals, setDevotionals] = useState<Devotional[]>([])
   const [loading, setLoading] = useState(true)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingDevotional, setEditingDevotional] = useState<Devotional | null>(null)
-  const [bibleVerses, setBibleVerses] = useState<BibleVerse[]>([])
-  const [bibleLoading, setBibleLoading] = useState(false)
-
-  // Form state
-  const [title, setTitle] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [prayerPoints, setPrayerPoints] = useState('')
-  const [bibleReference, setBibleReference] = useState('')
-  const [bibleVersion, setBibleVersion] = useState('KJV')
 
   useEffect(() => {
     fetchDevotionals()
@@ -38,12 +23,8 @@ export default function AdminDevotionalsPage() {
 
   const fetchDevotionals = async () => {
     try {
-      const { data } = await supabase
-        .from('devotionals')
-        .select('*')
-        .order('start_date', { ascending: false })
-
-      setDevotionals(data || [])
+      const devotionals = await devotionalClient.getDevotionals()
+      setDevotionals(devotionals)
     } catch (error) {
       console.error('Error fetching devotionals:', error)
     } finally {
@@ -51,110 +32,12 @@ export default function AdminDevotionalsPage() {
     }
   }
 
-  const fetchBibleVerse = async () => {
-    if (!bibleReference.trim()) return
 
-    setBibleLoading(true)
-    try {
-      const response = await fetch(`https://bible-api.deno.dev/verses/${bibleVersion}/${bibleReference}`)
-      const data = await response.json()
-
-      if (data.verses && data.verses.length > 0) {
-        const newVerse: BibleVerse = {
-          reference: data.verses[0].reference,
-          text: data.verses[0].text,
-          version: bibleVersion
-        }
-        setBibleVerses([...bibleVerses, newVerse])
-        setBibleReference('')
-      }
-    } catch (error) {
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to fetch Bible verse',
-        color: 'red',
-      })
-    } finally {
-      setBibleLoading(false)
-    }
-  }
-
-  const handleSubmit = async () => {
-    if (!title || !startDate) {
-      notifications.show({
-        title: 'Error',
-        message: 'Please fill in all required fields',
-        color: 'red',
-      })
-      return
-    }
-
-    try {
-      const devotionalData = {
-        title,
-        start_date: startDate,
-        end_date: endDate || null,
-        prayer_points: prayerPoints || null,
-      }
-
-      let devotionalId: string
-
-      if (editingDevotional) {
-        const { error } = await supabase
-          .from('devotionals')
-          .update(devotionalData)
-          .eq('id', editingDevotional.id)
-
-        if (error) throw error
-        devotionalId = editingDevotional.id
-      } else {
-        const { data, error } = await supabase
-          .from('devotionals')
-          .insert(devotionalData)
-          .select()
-          .single()
-
-        if (error) throw error
-        devotionalId = data.id
-      }
-
-      // Add Bible readings
-      for (const verse of bibleVerses) {
-        await supabase
-          .from('bible_readings')
-          .insert({
-            devotional_id: devotionalId,
-            verse_reference: verse.reference,
-            verse_text: verse.text,
-            bible_version: verse.version,
-          })
-      }
-
-      notifications.show({
-        title: 'Success',
-        message: `Devotional ${editingDevotional ? 'updated' : 'created'} successfully`,
-        color: 'green',
-      })
-
-      resetForm()
-      fetchDevotionals()
-    } catch (error) {
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to save devotional',
-        color: 'red',
-      })
-    }
-  }
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('devotionals')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
+      const success = await devotionalClient.deleteDevotional(id)
+      if (!success) throw new Error('Failed to delete devotional')
 
       notifications.show({
         title: 'Success',
@@ -172,25 +55,7 @@ export default function AdminDevotionalsPage() {
     }
   }
 
-  const resetForm = () => {
-    setTitle('')
-    setStartDate('')
-    setEndDate('')
-    setPrayerPoints('')
-    setBibleReference('')
-    setBibleVerses([])
-    setEditingDevotional(null)
-    setModalOpen(false)
-  }
 
-  const openEditModal = (devotional: Devotional) => {
-    setEditingDevotional(devotional)
-    setTitle(devotional.title)
-    setStartDate(devotional.start_date)
-    setEndDate(devotional.end_date || '')
-    setPrayerPoints(devotional.prayer_points || '')
-    setModalOpen(true)
-  }
 
   if (loading) {
     return (
@@ -223,7 +88,8 @@ export default function AdminDevotionalsPage() {
         </div>
         <Button
           leftSection={<IconPlus size={16} />}
-          onClick={() => setModalOpen(true)}
+          component={Link}
+          href="/admin/devotionals/create"
         >
           New Devotional
         </Button>
@@ -245,7 +111,8 @@ export default function AdminDevotionalsPage() {
                       <ActionIcon
                         variant="light"
                         color="blue"
-                        onClick={() => openEditModal(devotional)}
+                        component={Link}
+                        href={`/admin/devotionals/create?edit=${devotional.id}`}
                       >
                         <IconEdit size={16} />
                       </ActionIcon>
@@ -270,10 +137,106 @@ export default function AdminDevotionalsPage() {
                     )}
                   </Group>
 
+                  {/* Content Summary */}
+                  <Group gap="xs">
+                    {devotional.bible_readings && devotional.bible_readings.length > 0 && (
+                      <Badge color="blue" variant="light" leftSection={<IconBook size={12} />}>
+                        {devotional.bible_readings.length} {devotional.bible_readings.length === 1 ? 'Verse' : 'Verses'}
+                      </Badge>
+                    )}
+                    {devotional.devotional_ideas && devotional.devotional_ideas.length > 0 && (
+                      <Badge color="purple" variant="light" leftSection={<IconBulb size={12} />}>
+                        {devotional.devotional_ideas.length} {devotional.devotional_ideas.length === 1 ? 'Idea' : 'Ideas'}
+                      </Badge>
+                    )}
+                    {devotional.prayer_points && (
+                      <Badge color="yellow" variant="light">
+                        Prayer Points
+                      </Badge>
+                    )}
+                  </Group>
+
+                  {/* Bible Verses Preview */}
+                  {devotional.bible_readings && devotional.bible_readings.length > 0 && (
+                    <div>
+                      <Text size="xs" c="dimmed" mb="xs" fw={500}>Bible Readings:</Text>
+                      <Stack gap="xs">
+                        {devotional.bible_readings.slice(0, 2).map((reading, index) => (
+                          <div key={index} style={{ 
+                            backgroundColor: '#f8f9fa', 
+                            padding: '8px', 
+                            borderRadius: '4px',
+                            borderLeft: '2px solid #228be6'
+                          }}>
+                            <Text size="xs" fw={600} c="blue">
+                              {reading.verse_reference}
+                            </Text>
+                            <Text size="xs" lineClamp={2} style={{ fontStyle: 'italic' }}>
+                              "{reading.verse_text}"
+                            </Text>
+                          </div>
+                        ))}
+                        {devotional.bible_readings.length > 2 && (
+                          <Text size="xs" c="dimmed">
+                            +{devotional.bible_readings.length - 2} more verses...
+                          </Text>
+                        )}
+                      </Stack>
+                    </div>
+                  )}
+
+                  {/* Prayer Points Preview */}
                   {devotional.prayer_points && (
-                    <Text size="sm" lineClamp={3}>
-                      {devotional.prayer_points}
-                    </Text>
+                    <div>
+                      <Text size="xs" c="dimmed" mb="xs" fw={500}>Prayer Points:</Text>
+                      <div style={{ 
+                        backgroundColor: '#fff3cd', 
+                        border: '1px solid #ffeaa7', 
+                        borderRadius: '4px', 
+                        padding: '8px',
+                        maxHeight: '80px',
+                        overflow: 'hidden'
+                      }}>
+                        <Text size="xs" style={{ 
+                          color: '#856404',
+                          whiteSpace: 'pre-line',
+                          lineHeight: 1.4
+                        }}>
+                          {devotional.prayer_points}
+                        </Text>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Devotional Ideas Preview */}
+                  {devotional.devotional_ideas && devotional.devotional_ideas.length > 0 && (
+                    <div>
+                      <Text size="xs" c="dimmed" mb="xs" fw={500}>Devotional Ideas:</Text>
+                      <Stack gap="xs">
+                        {devotional.devotional_ideas.slice(0, 2).map((idea, index) => (
+                          <div key={index} style={{ 
+                            backgroundColor: '#f8f9fa', 
+                            padding: '8px', 
+                            borderRadius: '4px',
+                            borderLeft: '2px solid #7950f2'
+                          }}>
+                            <Text size="xs" fw={600} c="purple">
+                              {idea.title}
+                            </Text>
+                            {idea.description && (
+                              <Text size="xs" lineClamp={1} c="dimmed">
+                                {idea.description}
+                              </Text>
+                            )}
+                          </div>
+                        ))}
+                        {devotional.devotional_ideas.length > 2 && (
+                          <Text size="xs" c="dimmed">
+                            +{devotional.devotional_ideas.length - 2} more ideas...
+                          </Text>
+                        )}
+                      </Stack>
+                    </div>
                   )}
                 </Stack>
               </Card>
@@ -282,108 +245,7 @@ export default function AdminDevotionalsPage() {
         </Grid>
       )}
 
-      {/* Create/Edit Modal */}
-      <Modal
-        opened={modalOpen}
-        onClose={resetForm}
-        title={editingDevotional ? 'Edit Devotional' : 'New Devotional'}
-        size="lg"
-      >
-        <Stack gap="md">
-          <TextInput
-            label="Title"
-            placeholder="Enter devotional title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
 
-          <Grid>
-            <Grid.Col span={6}>
-              <TextInput
-                label="Start Date"
-                type="date"
-                placeholder="Select start date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
-            </Grid.Col>
-            <Grid.Col span={6}>
-              <TextInput
-                label="End Date (Optional)"
-                type="date"
-                placeholder="Select end date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </Grid.Col>
-          </Grid>
-
-          <Textarea
-            label="Prayer Points"
-            placeholder="Enter prayer points"
-            value={prayerPoints}
-            onChange={(e) => setPrayerPoints(e.target.value)}
-            rows={3}
-          />
-
-          <Card withBorder p="md">
-            <Group mb="md">
-              <IconBook size={20} />
-              <Title order={4}>Bible Readings</Title>
-            </Group>
-            
-            <Group>
-              <Select
-                label="Bible Version"
-                value={bibleVersion}
-                onChange={(value) => setBibleVersion(value || 'KJV')}
-                data={[
-                  { value: 'KJV', label: 'King James Version' },
-                  { value: 'NIV', label: 'New International Version' },
-                  { value: 'ESV', label: 'English Standard Version' },
-                ]}
-              />
-              <TextInput
-                label="Bible Reference"
-                placeholder="e.g., John 3:16"
-                value={bibleReference}
-                onChange={(e) => setBibleReference(e.target.value)}
-              />
-              <Button
-                onClick={fetchBibleVerse}
-                loading={bibleLoading}
-                style={{ alignSelf: 'end' }}
-              >
-                Add Verse
-              </Button>
-            </Group>
-
-            {bibleVerses.length > 0 && (
-              <Stack gap="sm" mt="md">
-                {bibleVerses.map((verse, index) => (
-                  <Card key={index} withBorder p="sm">
-                    <Text fw={600} size="sm">{verse.reference}</Text>
-                    <Text size="sm" style={{ fontStyle: 'italic' }}>
-                      "{verse.text}"
-                    </Text>
-                  </Card>
-                ))}
-              </Stack>
-            )}
-          </Card>
-
-          <Group justify="flex-end">
-            <Button variant="light" onClick={resetForm}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit}>
-              {editingDevotional ? 'Update' : 'Create'} Devotional
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
     </Stack>
   )
 } 

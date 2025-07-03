@@ -9,7 +9,10 @@ import Link from 'next/link'
 export default function HomePage() {
   const { user, profile } = useAuth()
 
-  if (!user) {
+  const isAuthenticated = user !== null
+  const displayName = profile?.name || user?.email || 'Church Member'
+
+  if (!isAuthenticated) {
     return (
       <Navigation>
         <Container size="lg" py="xl">
@@ -109,7 +112,7 @@ export default function HomePage() {
         <Stack gap="xl">
           <div>
             <Title order={1}>
-              Welcome back, {profile?.full_name || user.email}!
+              Welcome back, {displayName}!
             </Title>
             <Text c="dimmed">
               Here's what's happening in your church community today.

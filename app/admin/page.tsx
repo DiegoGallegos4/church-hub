@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Title, Text, Grid, Card, Stack, Group, Badge, Button, Skeleton } from '@mantine/core'
 import { IconUsers, IconBook, IconCalendar, IconSettings } from '@tabler/icons-react'
-import { supabase } from '@/lib/supabase'
+import { supabaseClient } from '@/lib'
 import Link from 'next/link'
 
 interface DashboardStats {
@@ -23,32 +23,24 @@ export default function AdminDashboard() {
 
   const fetchDashboardStats = async () => {
     try {
-      // Fetch total users
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
+      // Fetch all profiles to get user count
+      const profiles = await supabaseClient.getAllProfiles()
+      const totalUsers = profiles.length
+      const activeServers = profiles.filter(p => p.is_server).length
 
-      // Fetch total devotionals
-      const { count: totalDevotionals } = await supabase
-        .from('devotionals')
-        .select('*', { count: 'exact', head: true })
+      // Fetch devotionals
+      const devotionals = await supabaseClient.getDevotionals()
+      const totalDevotionals = devotionals.length
 
-      // Fetch total rota slots
-      const { count: totalRotaSlots } = await supabase
-        .from('rota_slots')
-        .select('*', { count: 'exact', head: true })
-
-      // Fetch active servers
-      const { count: activeServers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_server', true)
+      // Fetch rota slots
+      const rotaSlots = await supabaseClient.getRotaSlots()
+      const totalRotaSlots = rotaSlots.length
 
       setStats({
-        totalUsers: totalUsers || 0,
-        totalDevotionals: totalDevotionals || 0,
-        totalRotaSlots: totalRotaSlots || 0,
-        activeServers: activeServers || 0,
+        totalUsers,
+        totalDevotionals,
+        totalRotaSlots,
+        activeServers,
       })
     } catch (error) {
       console.error('Error fetching dashboard stats:', error)

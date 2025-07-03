@@ -13,6 +13,7 @@ You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, 
 - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
 - Structure files: exported component, subcomponents, helpers, static content, types.
 - Use service, repository and model type of architecture or suggest any other clean code architecture
+- Don't add needless comments (e.g export this file, comment exactly what a good variable name should be doing instead)
 
 **Naming Conventions**
 
